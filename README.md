@@ -3,7 +3,7 @@
 A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with IdP-initiated flows and chained federation. Supports two SSO entry points:
 
 1. **Direct login** — Users authenticate at Edith Core and SSO into RDC/ACH
-2. **Bank SSO** — Bank users authenticate at Edith Bank, SSO into Edith Core, then chain-SSO into RDC/ACH
+2. **Bank SSO** — Bank users authenticate at Edith Bank or Jarvis Bank, SSO into Edith Core, then chain-SSO into RDC/ACH
 
 ## Architecture
 
@@ -14,15 +14,24 @@ A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with IdP-in
 │  Bank Login      │         │  Auth + SAML IdP      │
 └────────┬─────────┘         └──────────┬────────────┘
          │                              │
-         │  "Open Edith Core"           │  Signs SAML assertion
-         │  SAMLResponse via POST       │  for edith-core SP
+         │  "Open Edith Core"           │
+         │  SAMLResponse via POST       │
          │                              │
-         ▼                              │
+┌────────┴─────────┐         ┌──────────┴────────────┐
+│ jarvis-bank-ui   │  REST   │ jarvis-bank-backend    │
+│ (Node.js :5001)  │────────>│ (Spring Boot :9094)    │
+│ Jarvis Login     │         │ Auth + SAML IdP        │
+└────────┬─────────┘         └──────────┬─────────────┘
+         │                              │
+         │  "Open Edith Core"           │
+         │  SAMLResponse via POST       │
+         │                              │
+         ▼                              ▼
 ┌──────────────────┐         ┌──────────────────────┐
 │  edith-core-ui   │  REST   │  edith-core-backend   │
 │  (Node.js :3000) │────────>│  (Spring Boot :9090)  │
 │  Login, Dashboard │         │  SAML IdP + SP        │
-│  POST /saml/acs  │         │  Validates bank SAML  │
+│  POST /saml/acs  │         │  Multi-IdP trust      │
 └────────┬─────────┘         │  Generates RDC/ACH    │
          │                   └──────────┬────────────┘
          │  "Open RDC" / "Open ACH"     │
@@ -53,8 +62,10 @@ A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with IdP-in
 |---------|------|------|------|-------------|
 | edith-bank-ui | Node.js/Express | 5000 | IdP Frontend | Bank login, dashboard with SSO link to Edith Core |
 | edith-bank-backend | Spring Boot | 9093 | SAML IdP | Bank user auth, SAML assertion generation for edith-core |
-| edith-core-ui | Node.js/Express | 3000 | IdP + SP Frontend | Login page, dashboard, receives SSO from bank |
-| edith-core-backend | Spring Boot | 9090 | SAML IdP + SP | Dual role: IdP for RDC/ACH, SP for edith-bank |
+| jarvis-bank-ui | Node.js/Express | 5001 | IdP Frontend | Jarvis Bank login, dashboard with SSO link to Edith Core |
+| jarvis-bank-backend | Spring Boot | 9094 | SAML IdP | Jarvis user auth, SAML assertion generation for edith-core |
+| edith-core-ui | Node.js/Express | 3000 | IdP + SP Frontend | Login page, dashboard, receives SSO from banks |
+| edith-core-backend | Spring Boot | 9090 | SAML IdP + SP | Dual role: IdP for RDC/ACH, SP for edith-bank + jarvis-bank |
 | edith-rdc-ui | Node.js/Express | 4000 | SP Frontend | Remote deposit check upload interface |
 | edith-rdc-backend | Spring Boot | 9091 | SAML SP | Validates SAML assertions, extracts user info |
 | edith-ach-ui | Node.js/Express | 4001 | SP Frontend | ACH payment request interface |
@@ -132,13 +143,15 @@ This is a **3-hop chained federation**: the bank user never enters credentials a
 | Artifact | From | To | Purpose |
 |----------|------|----|---------|
 | `idp-cert.pem` | edith-core (IdP) | RDC/ACH SP backends | SP uses it to verify SAML assertion signatures |
-| `bank-idp-cert.pem` | edith-bank (IdP) | edith-core-backend | Core SP validates bank's SAML assertions |
+| `bank-idp-cert.pem` | edith-bank (IdP) | edith-core-backend | Core SP validates edith-bank's SAML assertions |
+| `jarvis-idp-cert.pem` | jarvis-bank (IdP) | edith-core-backend | Core SP validates jarvis-bank's SAML assertions |
 | SP entity ID | Each SP | Corresponding IdP config | IdP sets this as the `Audience` in the assertion |
 | SP ACS URL | Each SP | Corresponding IdP config | IdP sets this as the `Destination` — where the SAMLResponse is POSTed |
 
 Private keys **never** leave their respective backends:
 - `idp-key.pem` stays in edith-core-backend
 - `bank-idp-key.pem` stays in edith-bank-backend
+- `jarvis-idp-key.pem` stays in jarvis-bank-backend
 
 ## Certificates
 
@@ -148,8 +161,10 @@ Self-signed X.509 certificates (RSA 2048-bit, 365 days) are used for signing and
 |------|----------|---------|
 | `idp-cert.pem` | edith-core-ui/saml/, RDC/ACH backend resources | Core IdP public cert for signature verification |
 | `idp-key.pem` | edith-core-ui/saml/, edith-core-backend resources | Core IdP private key for signing assertions |
-| `bank-idp-cert.pem` | edith-bank-ui/saml/, edith-bank-backend resources, edith-core-backend resources | Bank IdP public cert for signature verification |
-| `bank-idp-key.pem` | edith-bank-ui/saml/, edith-bank-backend resources | Bank IdP private key for signing assertions |
+| `bank-idp-cert.pem` | edith-bank-ui/saml/, edith-bank-backend resources, edith-core-backend resources | Edith Bank IdP public cert for signature verification |
+| `bank-idp-key.pem` | edith-bank-ui/saml/, edith-bank-backend resources | Edith Bank IdP private key for signing assertions |
+| `jarvis-idp-cert.pem` | jarvis-bank-ui/saml/, jarvis-bank-backend resources, edith-core-backend resources | Jarvis Bank IdP public cert for signature verification |
+| `jarvis-idp-key.pem` | jarvis-bank-ui/saml/, jarvis-bank-backend resources | Jarvis Bank IdP private key for signing assertions |
 | `sp-cert.pem` | edith-rdc-ui/saml/, edith-rdc-backend resources | RDC SP certificate |
 | `sp-key.pem` | edith-rdc-ui/saml/ | RDC SP private key |
 | `sp-cert.pem` | edith-ach-ui/saml/, edith-ach-backend resources | ACH SP certificate |
@@ -216,18 +231,20 @@ cd edith-core-backend && mvn clean package -DskipTests && cd ..
 cd edith-rdc-backend && mvn clean package -DskipTests && cd ..
 cd edith-ach-backend && mvn clean package -DskipTests && cd ..
 cd edith-bank-backend && mvn clean package -DskipTests && cd ..
+cd jarvis-bank-backend && mvn clean package -DskipTests && cd ..
 
 # Install Node.js dependencies
 cd edith-core-ui && npm install && cd ..
 cd edith-rdc-ui && npm install && cd ..
 cd edith-ach-ui && npm install && cd ..
 cd edith-bank-ui && npm install && cd ..
+cd jarvis-bank-ui && npm install && cd ..
 ```
 
 ### Run
 
 ```bash
-# Start all 8 services
+# Start all 10 services
 ./start-all.sh
 
 # Stop all services
@@ -242,17 +259,23 @@ cd edith-bank-ui && npm install && cd ..
 3. Click **Open RDC** to SSO into Remote Deposit Capture at :4000
 4. Click **Open ACH** to SSO into ACH Payments at :4001
 
-**Bank SSO flow (chained federation):**
+**Edith Bank SSO flow (chained federation):**
 1. Open http://localhost:5000
 2. Login with `bankuser1` / `password123` (or `bankuser2` / `password123`)
+3. Click **Open Edith Core** — SSO into Core dashboard at :3000 (no login needed)
+4. Click **Open RDC** or **Open ACH** — chain-SSO into the partner app (no login needed)
+
+**Jarvis Bank SSO flow (chained federation):**
+1. Open http://localhost:5001
+2. Login with `jarvis1` / `password123` (or `jarvis2` / `password123`)
 3. Click **Open Edith Core** — SSO into Core dashboard at :3000 (no login needed)
 4. Click **Open RDC** or **Open ACH** — chain-SSO into the partner app (no login needed)
 
 ### Logs
 
 Service logs are written to the `logs/` directory:
-- `core-backend.log`, `rdc-backend.log`, `ach-backend.log`, `bank-backend.log`
-- `core-ui.log`, `rdc-ui.log`, `ach-ui.log`, `bank-ui.log`
+- `core-backend.log`, `rdc-backend.log`, `ach-backend.log`, `bank-backend.log`, `jarvis-backend.log`
+- `core-ui.log`, `rdc-ui.log`, `ach-ui.log`, `bank-ui.log`, `jarvis-ui.log`
 
 ## Adding a New Service Provider
 

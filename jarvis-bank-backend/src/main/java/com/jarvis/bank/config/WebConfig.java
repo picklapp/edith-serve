@@ -1,4 +1,4 @@
-package com.edith.core.config;
+package com.jarvis.bank.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,8 +12,6 @@ public class WebConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.addAllowedOrigin("http://localhost:3000");
-        config.addAllowedOrigin("http://localhost:5000");
         config.addAllowedOrigin("http://localhost:5001");
         config.addAllowedMethod("*");
         config.addAllowedHeader("*");
