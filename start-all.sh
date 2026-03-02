@@ -18,7 +18,7 @@ echo ""
 
 # Kill any existing processes on our ports
 echo -e "${YELLOW}Stopping any existing services...${NC}"
-for PORT in 3000 4000 4001 9090 9091 9092; do
+for PORT in 3000 4000 4001 5000 9090 9091 9092 9093; do
   PID=$(lsof -ti :$PORT 2>/dev/null)
   if [ -n "$PID" ]; then
     kill -9 $PID 2>/dev/null
@@ -46,10 +46,14 @@ java -jar "$BASE_DIR/edith-ach-backend/target/edith-ach-backend-1.0.0.jar" \
   > "$BASE_DIR/logs/ach-backend.log" 2>&1 &
 echo "  edith-ach-backend  (port 9092) - PID: $!"
 
+java -jar "$BASE_DIR/edith-bank-backend/target/edith-bank-backend-1.0.0.jar" \
+  > "$BASE_DIR/logs/bank-backend.log" 2>&1 &
+echo "  edith-bank-backend (port 9093) - PID: $!"
+
 # Wait for backends to start
 echo ""
 echo -e "${YELLOW}Waiting for backends to start...${NC}"
-for PORT in 9090 9091 9092; do
+for PORT in 9090 9091 9092 9093; do
   TRIES=0
   while ! curl -s "http://localhost:$PORT" > /dev/null 2>&1; do
     TRIES=$((TRIES + 1))
@@ -80,6 +84,10 @@ cd "$BASE_DIR/edith-ach-ui" && node server.js \
   > "$BASE_DIR/logs/ach-ui.log" 2>&1 &
 echo "  edith-ach-ui       (port 4001) - PID: $!"
 
+cd "$BASE_DIR/edith-bank-ui" && node server.js \
+  > "$BASE_DIR/logs/bank-ui.log" 2>&1 &
+echo "  edith-bank-ui      (port 5000) - PID: $!"
+
 sleep 1
 
 echo ""
@@ -87,14 +95,17 @@ echo "========================================"
 echo -e "  ${GREEN}All services started!${NC}"
 echo "========================================"
 echo ""
-echo "  edith-core-ui       http://localhost:3000"
-echo "  edith-rdc-ui        http://localhost:4000"
-echo "  edith-ach-ui        http://localhost:4001"
+echo "  edith-bank-ui       http://localhost:5000  (Bank IdP)"
+echo "  edith-core-ui       http://localhost:3000  (Core IdP+SP)"
+echo "  edith-rdc-ui        http://localhost:4000  (RDC SP)"
+echo "  edith-ach-ui        http://localhost:4001  (ACH SP)"
+echo "  edith-bank-backend  http://localhost:9093"
 echo "  edith-core-backend  http://localhost:9090"
 echo "  edith-rdc-backend   http://localhost:9091"
 echo "  edith-ach-backend   http://localhost:9092"
 echo ""
 echo "  Logs: $BASE_DIR/logs/"
-echo "  Login: john/password123 or jane/password123"
+echo "  Core login:  john/password123 or jane/password123"
+echo "  Bank login:  bankuser1/password123 or bankuser2/password123"
 echo ""
 echo "  To stop all: ./stop-all.sh"

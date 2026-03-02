@@ -1,18 +1,32 @@
 # Edith Platform — SAML SSO Demo
 
-A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with an IdP-initiated flow. Users authenticate once in Edith Core and seamlessly access partner applications (RDC, ACH) without re-entering credentials.
+A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with IdP-initiated flows and chained federation. Supports two SSO entry points:
+
+1. **Direct login** — Users authenticate at Edith Core and SSO into RDC/ACH
+2. **Bank SSO** — Bank users authenticate at Edith Bank, SSO into Edith Core, then chain-SSO into RDC/ACH
 
 ## Architecture
 
 ```
 ┌──────────────────┐         ┌──────────────────────┐
-│  edith-core-ui   │  REST   │  edith-core-backend   │
-│  (Node.js :3000) │────────>│  (Spring Boot :9090)  │
-│  Login, Dashboard │         │  Auth + SAML IdP      │
+│  edith-bank-ui   │  REST   │  edith-bank-backend   │
+│  (Node.js :5000) │────────>│  (Spring Boot :9093)  │
+│  Bank Login      │         │  Auth + SAML IdP      │
 └────────┬─────────┘         └──────────┬────────────┘
          │                              │
-         │  Renders auto-submit form    │  Generates signed
-         │  with SAMLResponse           │  SAML assertions
+         │  "Open Edith Core"           │  Signs SAML assertion
+         │  SAMLResponse via POST       │  for edith-core SP
+         │                              │
+         ▼                              │
+┌──────────────────┐         ┌──────────────────────┐
+│  edith-core-ui   │  REST   │  edith-core-backend   │
+│  (Node.js :3000) │────────>│  (Spring Boot :9090)  │
+│  Login, Dashboard │         │  SAML IdP + SP        │
+│  POST /saml/acs  │         │  Validates bank SAML  │
+└────────┬─────────┘         │  Generates RDC/ACH    │
+         │                   └──────────┬────────────┘
+         │  "Open RDC" / "Open ACH"     │
+         │  SAMLResponse via POST       │
          │                              │
     ┌────┴──────────────────────────────┘
     │  HTTP-POST binding (SAMLResponse)
@@ -37,16 +51,33 @@ A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with an IdP
 
 | Project | Type | Port | Role | Description |
 |---------|------|------|------|-------------|
-| edith-core-ui | Node.js/Express | 3000 | IdP Frontend | Login page, dashboard with SSO links to partner apps |
-| edith-core-backend | Spring Boot | 9090 | SAML IdP | User authentication, SAML assertion generation & signing |
+| edith-bank-ui | Node.js/Express | 5000 | IdP Frontend | Bank login, dashboard with SSO link to Edith Core |
+| edith-bank-backend | Spring Boot | 9093 | SAML IdP | Bank user auth, SAML assertion generation for edith-core |
+| edith-core-ui | Node.js/Express | 3000 | IdP + SP Frontend | Login page, dashboard, receives SSO from bank |
+| edith-core-backend | Spring Boot | 9090 | SAML IdP + SP | Dual role: IdP for RDC/ACH, SP for edith-bank |
 | edith-rdc-ui | Node.js/Express | 4000 | SP Frontend | Remote deposit check upload interface |
 | edith-rdc-backend | Spring Boot | 9091 | SAML SP | Validates SAML assertions, extracts user info |
 | edith-ach-ui | Node.js/Express | 4001 | SP Frontend | ACH payment request interface |
 | edith-ach-backend | Spring Boot | 9092 | SAML SP | Validates SAML assertions, extracts user info |
 
-## SAML SSO Flow
+## SAML SSO Flows
 
-### How it works (IdP-Initiated SSO)
+### Flow 1: Chained SSO (Bank → Core → RDC/ACH)
+
+```
+1. Bank user logs in      2. Clicks "Open Edith Core"   3. Lands on Core dashboard
+   at :5000                  SAMLResponse posted to         Clicks "Open RDC"
+                             :3000/saml/acs                 SAMLResponse posted to
+                                                            :4000/saml/acs
+
+edith-bank ──SAML──> edith-core (SP validates) ──SAML──> edith-rdc (SP validates)
+  (IdP)                (creates session)           (IdP)     (creates session)
+  :5000/:9093          :3000/:9090                           :4000/:9091
+```
+
+This is a **3-hop chained federation**: the bank user never enters credentials at edith-core or edith-rdc.
+
+### Flow 2: Direct login (Core → RDC/ACH)
 
 ```
 1. User logs in          2. Clicks "Open RDC"      3. Browser auto-POSTs
@@ -100,11 +131,14 @@ A multi-service platform demonstrating SAML 2.0 Single Sign-On (SSO) with an IdP
 
 | Artifact | From | To | Purpose |
 |----------|------|----|---------|
-| `idp-cert.pem` | edith-core (IdP) | Each SP backend | SP uses it to verify SAML assertion signatures |
-| SP entity ID | Each SP | edith-core-backend config | IdP sets this as the `Audience` in the assertion |
-| SP ACS URL | Each SP | edith-core-backend config | IdP sets this as the `Destination` — where the SAMLResponse is POSTed |
+| `idp-cert.pem` | edith-core (IdP) | RDC/ACH SP backends | SP uses it to verify SAML assertion signatures |
+| `bank-idp-cert.pem` | edith-bank (IdP) | edith-core-backend | Core SP validates bank's SAML assertions |
+| SP entity ID | Each SP | Corresponding IdP config | IdP sets this as the `Audience` in the assertion |
+| SP ACS URL | Each SP | Corresponding IdP config | IdP sets this as the `Destination` — where the SAMLResponse is POSTed |
 
-The IdP private key (`idp-key.pem`) **never** leaves edith-core-backend.
+Private keys **never** leave their respective backends:
+- `idp-key.pem` stays in edith-core-backend
+- `bank-idp-key.pem` stays in edith-bank-backend
 
 ## Certificates
 
@@ -112,8 +146,10 @@ Self-signed X.509 certificates (RSA 2048-bit, 365 days) are used for signing and
 
 | File | Location | Purpose |
 |------|----------|---------|
-| `idp-cert.pem` | edith-core-ui/saml/, all backend resources | IdP public certificate for signature verification |
-| `idp-key.pem` | edith-core-ui/saml/, edith-core-backend resources | IdP private key for signing assertions |
+| `idp-cert.pem` | edith-core-ui/saml/, RDC/ACH backend resources | Core IdP public cert for signature verification |
+| `idp-key.pem` | edith-core-ui/saml/, edith-core-backend resources | Core IdP private key for signing assertions |
+| `bank-idp-cert.pem` | edith-bank-ui/saml/, edith-bank-backend resources, edith-core-backend resources | Bank IdP public cert for signature verification |
+| `bank-idp-key.pem` | edith-bank-ui/saml/, edith-bank-backend resources | Bank IdP private key for signing assertions |
 | `sp-cert.pem` | edith-rdc-ui/saml/, edith-rdc-backend resources | RDC SP certificate |
 | `sp-key.pem` | edith-rdc-ui/saml/ | RDC SP private key |
 | `sp-cert.pem` | edith-ach-ui/saml/, edith-ach-backend resources | ACH SP certificate |
@@ -179,17 +215,19 @@ SP backends validate: signature (using IdP cert), issuer, status, audience, and 
 cd edith-core-backend && mvn clean package -DskipTests && cd ..
 cd edith-rdc-backend && mvn clean package -DskipTests && cd ..
 cd edith-ach-backend && mvn clean package -DskipTests && cd ..
+cd edith-bank-backend && mvn clean package -DskipTests && cd ..
 
 # Install Node.js dependencies
 cd edith-core-ui && npm install && cd ..
 cd edith-rdc-ui && npm install && cd ..
 cd edith-ach-ui && npm install && cd ..
+cd edith-bank-ui && npm install && cd ..
 ```
 
 ### Run
 
 ```bash
-# Start all 6 services
+# Start all 8 services
 ./start-all.sh
 
 # Stop all services
@@ -198,17 +236,23 @@ cd edith-ach-ui && npm install && cd ..
 
 ### Test
 
+**Direct login flow:**
 1. Open http://localhost:3000
 2. Login with `john` / `password123` (or `jane` / `password123`)
 3. Click **Open RDC** to SSO into Remote Deposit Capture at :4000
 4. Click **Open ACH** to SSO into ACH Payments at :4001
-5. Both apps show the SSO badge and logged-in user without asking for credentials
+
+**Bank SSO flow (chained federation):**
+1. Open http://localhost:5000
+2. Login with `bankuser1` / `password123` (or `bankuser2` / `password123`)
+3. Click **Open Edith Core** — SSO into Core dashboard at :3000 (no login needed)
+4. Click **Open RDC** or **Open ACH** — chain-SSO into the partner app (no login needed)
 
 ### Logs
 
 Service logs are written to the `logs/` directory:
-- `core-backend.log`, `rdc-backend.log`, `ach-backend.log`
-- `core-ui.log`, `rdc-ui.log`, `ach-ui.log`
+- `core-backend.log`, `rdc-backend.log`, `ach-backend.log`, `bank-backend.log`
+- `core-ui.log`, `rdc-ui.log`, `ach-ui.log`, `bank-ui.log`
 
 ## Adding a New Service Provider
 

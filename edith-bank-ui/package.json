@@ -1,0 +1,15 @@
+{
+  "name": "edith-bank-ui",
+  "version": "1.0.0",
+  "description": "Edith Bank UI - frontend for bank login and SSO to Edith Core",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3"
+  }
+}

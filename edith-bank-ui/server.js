@@ -4,8 +4,8 @@ const bodyParser = require('body-parser');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
-const BACKEND_URL = 'http://localhost:9090';
+const PORT = 5000;
+const BACKEND_URL = 'http://localhost:9093';
 
 // Middleware
 app.set('view engine', 'ejs');
@@ -13,7 +13,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(session({
-  secret: 'cc-core-secret-key',
+  secret: 'edith-bank-secret-key',
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 30 * 60 * 1000 }
@@ -53,50 +53,13 @@ app.post('/login', async (req, res) => {
     res.redirect('/dashboard');
   } catch (err) {
     console.error('Login error:', err);
-    res.render('login', { error: 'Backend service unavailable. Is edith-core-backend running on port 9090?' });
+    res.render('login', { error: 'Backend service unavailable. Is edith-bank-backend running on port 9093?' });
   }
 });
 
 app.get('/dashboard', requireAuth, (req, res) => {
   res.render('dashboard', { user: req.session.user });
 });
-
-// SAML ACS — edith-core acting as SP (receives SSO from edith-bank)
-app.post('/saml/acs', async (req, res) => {
-  try {
-    const samlResponse = req.body.SAMLResponse;
-    if (!samlResponse) {
-      throw new Error('Missing SAMLResponse');
-    }
-
-    const response = await fetch(`${BACKEND_URL}/api/saml/acs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ samlResponse })
-    });
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'SAML validation failed');
-    }
-
-    req.session.user = {
-      email: data.email,
-      displayName: data.displayName,
-      username: data.nameID
-    };
-    res.redirect('/dashboard');
-  } catch (err) {
-    console.error('SAML ACS Error:', err);
-    res.status(400).send('SSO Error: ' + err.message);
-  }
-});
-
-// Service display names
-const SP_NAMES = {
-  rdc: 'Edith RDC',
-  ach: 'Edith ACH'
-};
 
 // IdP-initiated SSO — calls Spring Boot backend to generate SAML Response
 app.get('/saml/sso/:spName', requireAuth, async (req, res) => {
@@ -114,11 +77,10 @@ app.get('/saml/sso/:spName', requireAuth, async (req, res) => {
       throw new Error(data.error || 'Failed to generate SAML response');
     }
 
-    // Render auto-submit form that POSTs SAMLResponse to SP ACS
     res.render('sso-post', {
       acsUrl: data.acsUrl,
       samlResponse: data.samlResponse,
-      serviceName: SP_NAMES[spName] || spName
+      serviceName: 'Edith Core'
     });
   } catch (err) {
     console.error('SAML SSO Error:', err);
@@ -144,6 +106,6 @@ app.get('/logout', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`edith-core (UI) running at http://localhost:${PORT}`);
+  console.log(`edith-bank (UI) running at http://localhost:${PORT}`);
   console.log(`  -> Backend: ${BACKEND_URL}`);
 });
