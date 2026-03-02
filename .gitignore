@@ -23,6 +23,9 @@ uploads/
 .classpath
 .settings/
 
+# Certificates
+*.pem
+
 # OS
 .DS_Store
 Thumbs.db

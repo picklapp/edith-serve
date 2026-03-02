@@ -215,6 +215,21 @@ SP backends validate: signature (using IdP cert), issuer, status, audience, and 
 | Signing | RSA-SHA256, X.509 certificates |
 | Build | Maven (backends), npm (frontends) |
 
+## Demo Credentials
+
+All passwords are `password123`.
+
+| Service | URL | Username | Email | Display Name |
+|---------|-----|----------|-------|--------------|
+| Edith Core | http://localhost:3000 | `john` | john@example.com | John Doe |
+| Edith Core | http://localhost:3000 | `jane` | jane@example.com | Jane Smith |
+| Edith Bank | http://localhost:5000 | `bankuser1` | bankuser1@edithbank.com | Bank User One |
+| Edith Bank | http://localhost:5000 | `bankuser2` | bankuser2@edithbank.com | Bank User Two |
+| Jarvis Bank | http://localhost:5001 | `jarvis1` | jarvis1@jarvisbank.com | Jarvis User One |
+| Jarvis Bank | http://localhost:5001 | `jarvis2` | jarvis2@jarvisbank.com | Jarvis User Two |
+
+RDC (:4000) and ACH (:4001) do not have their own login — they are accessed exclusively via SSO from Edith Core.
+
 ## Quick Start
 
 ### Prerequisites
@@ -222,6 +237,17 @@ SP backends validate: signature (using IdP cert), issuer, status, audience, and 
 - Java 17+
 - Node.js 18+
 - Maven 3.8+
+- OpenSSL (for certificate generation)
+
+### Generate Certificates
+
+PEM files are not checked into the repo. Generate them first:
+
+```bash
+./generate-certs.sh
+```
+
+This creates all 5 keypairs and distributes them to the correct project directories.
 
 ### Build
 
