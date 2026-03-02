@@ -18,59 +18,84 @@ This means the legacy codebase contains:
 
 ---
 
-## 2. Why This Matters
+## 2. Why We Must Create This Gateway
 
-### 2.1 The Security Problem with SAML in Legacy Code
+### 2.1 SAML Is the Highest-Risk Code in Our Stack
 
-SAML processing involves some of the most security-sensitive operations in any application:
+SAML processing is not ordinary business logic. It performs the most security-critical operations in any enterprise application:
 
-| Operation | Security Risk |
-|-----------|--------------|
-| **XML parsing** | Susceptible to XXE (XML External Entity) injection, billion laughs DoS attacks |
-| **Cryptographic signature verification** | Relies on correct implementation of RSA-SHA256 and XML canonicalization |
-| **Certificate management** | Private keys must be securely stored, loaded, and rotated |
-| **Base64 encoding/decoding** | Malformed input can cause crashes or authentication bypasses |
-| **Time-based validation** | Assertion expiry and clock skew must be handled precisely |
+| Operation | What Can Go Wrong |
+|-----------|-------------------|
+| **XML parsing** | XXE (XML External Entity) injection allows attackers to read arbitrary files from the server. Billion laughs attacks cause denial of service. |
+| **Cryptographic signature verification** | A single implementation flaw in RSA-SHA256 or XML canonicalization lets an attacker forge assertions and impersonate any user. |
+| **Private key handling** | The RSA private key used to sign assertions is the crown jewel — if compromised, every federated application trusts the attacker completely. |
+| **Base64 decoding** | Malformed input can trigger parsing errors that bypass validation entirely, admitting unsigned or tampered assertions. |
+| **Assertion lifetime checks** | Incorrect clock skew or expiry handling enables replay attacks — resubmitting a captured assertion hours or days later. |
 
-When this code lives inside a **legacy Groovy/Grails application** that cannot be upgraded:
-- The XML parser may be an old version with known CVEs (XXE, SSRF)
-- OpenSAML or its transitive dependencies may be on end-of-life versions with no security patches
-- The JDK itself may be an older version with weaker crypto defaults
-- Dependency conflicts (e.g., old Bouncy Castle, old Apache XML Security) are impossible to resolve without breaking the legacy app
-- OWASP dependency scans flag the entire application, but fixing SAML-specific CVEs requires touching shared dependencies that the legacy app depends on
+**This code currently lives inside edith-core — a legacy Groovy application we cannot upgrade.** That is the core problem.
 
-### 2.2 Benefits of Extracting to a Gateway
+### 2.2 The Legacy Groovy Trap
 
-| Benefit | Detail |
-|---------|--------|
-| **Isolate vulnerability surface** | All XML parsing, signature crypto, and cert handling move to a modern, patchable Spring Boot 3.x service. The legacy app never touches XML or certs. |
-| **Independent patching** | When a new OpenSAML CVE is published, you patch and redeploy the gateway in minutes — without regression-testing the entire legacy Groovy app. |
-| **Modern JDK** | The gateway runs on Java 17+ with current crypto providers. The legacy app stays on whatever JDK it requires. |
-| **Centralized cert management** | All private keys and trusted IdP certificates live in one place. No certs scattered across multiple legacy codebases. Easy to audit. |
-| **Reduced blast radius** | If the gateway is compromised, the attacker gets SAML signing capability only. If the legacy app (with embedded SAML) is compromised, they get SAML + business data + database access + internal APIs. |
-| **Single responsibility** | The gateway does one thing: translate between SAML XML and REST JSON. It has no business logic, no database, no user data. |
-| **Easier compliance** | Security audits can focus on the small gateway codebase (~6 Java files) instead of auditing SAML handling across the entire legacy monolith. |
-| **Horizontal scalability** | The gateway can be scaled independently for SSO traffic spikes without scaling the heavyweight legacy app. |
-| **Multi-IdP management** | Adding a new trusted bank (IdP) is a config change in the gateway — add cert + entity-id. The legacy app is completely untouched. |
-| **Zero-downtime SAML upgrades** | Migrate from OpenSAML 4.x to 5.x in the gateway without any impact on the legacy application. |
+edith-core is frozen. We own it, but we cannot safely modify it:
 
-### 2.3 What Doesn't Change (No User Impact)
+- **The JDK is pinned.** The Groovy runtime requires a specific JDK version. We cannot upgrade to Java 17+ for modern crypto defaults without breaking the entire application.
+- **Dependencies are locked.** OpenSAML depends on BouncyCastle, Apache XML Security, and Xerces. These share version constraints with the Groovy framework. Upgrading any one of them risks cascading failures across the legacy app.
+- **OWASP scans are failing.** Security scanners flag the outdated XML and crypto libraries, but fixing them requires dependency changes that the legacy app cannot absorb. This blocks the deployment pipeline for *all* changes — including critical business fixes.
+- **No test coverage.** The legacy Groovy codebase has minimal automated tests. Any change to SAML handling requires extensive manual regression testing of the entire application.
+- **The codebase is a single blast radius.** If an attacker exploits the XML parser (XXE), they don't just compromise SSO — they have access to the database, business data, internal APIs, and the private signing key, all in one process.
 
-- **The SSO user experience is identical** — users still see the same login pages, dashboards, and auto-redirect flows
-- **The browser SAML flow is unchanged** — HTTP-POST binding with auto-submit forms works the same way
-- **Bank and SP partners are unaffected** — edith-bank and jarvis-bank still POST to `http://localhost:3000/saml/acs` (edith-core-ui proxies to gateway transparently)
+**We cannot patch SAML vulnerabilities without risking the entire legacy application. And we cannot ignore them — SAML is the front door to our federation.**
+
+### 2.3 What Happens If We Do Nothing
+
+These are not hypothetical risks. They are the documented consequences of running unpatched SAML code in a legacy runtime:
+
+| Scenario | Attack Vector | Business Impact | Severity |
+|----------|--------------|-----------------|----------|
+| **XXE in XML parser** | Attacker sends crafted SAMLResponse with `<!DOCTYPE>` entity. Unpatched parser resolves it. | Server files exfiltrated (credentials, configs). SSRF into internal network. Full system compromise. | **Critical** |
+| **SHA-1 signature bypass** | Legacy OpenSAML version falls back to SHA-1 when SHA-256 fails. Attacker precomputes collision. | Forged SAML assertions accepted. Attacker impersonates any user across all federated apps (RDC, ACH, future SPs). | **Critical** |
+| **Signing key compromise** | Private key stored in legacy app's classpath alongside business code. Any file-read vulnerability exposes it. | Attacker signs valid assertions for any user, any SP. All federated trust is broken. Requires emergency key rotation across every partner. | **Critical** |
+| **BouncyCastle CVE unpatched** | Known vulnerability in crypto library. Cannot upgrade because Groovy framework pins the version. | Cryptographic operations are weakened. Signature verification can be bypassed. Persists indefinitely. | **High** |
+| **OWASP blocks deployment** | Dependency scanner fails on legacy XML/crypto libs. Pipeline refuses to deploy. | Cannot ship business-critical bug fixes or features. Revenue impact. Customer trust eroded. | **High** |
+| **Groovy runtime EOL** | No security patches for the runtime itself. JDK version lacks modern TLS/crypto defaults. | The entire application becomes a known-vulnerable target. Compliance audits fail. | **High** |
+
+### 2.4 The Gateway Solves Every One of These Problems
+
+By extracting SAML into a dedicated microservice, we eliminate each risk:
+
+**1. Isolate the vulnerability surface.**
+All XML parsing, cryptographic signing, and certificate handling move to a modern Spring Boot 3.x service running on Java 17+. The legacy Groovy app never processes XML, never touches a private key, never loads OpenSAML. If the XML parser has a zero-day, only the gateway is exposed — not the database, not the business data.
+
+**2. Patch independently, instantly.**
+When a new OpenSAML CVE is published, we update the gateway's `pom.xml`, rebuild, and redeploy in minutes. No regression testing of the legacy Groovy app. No dependency conflicts. No pipeline blockage.
+
+**3. Contain the private key.**
+The RSA private key lives only in the gateway — a small, auditable service (~6 Java files) with no database, no business logic, no other attack surface. It's the smallest possible blast radius for our most sensitive secret.
+
+**4. Unblock the deployment pipeline.**
+edith-core-backend ships with zero OpenSAML dependencies. OWASP scans pass. Business fixes deploy without being blocked by SAML-related CVEs.
+
+**5. Run a modern JDK.**
+The gateway runs Java 17+ with current crypto providers, TLS 1.3, and secure defaults. The legacy app stays on its required JDK. They are completely decoupled.
+
+**6. Centralize certificate management.**
+All trusted IdP certificates and the signing keypair live in one directory (`resources/saml/`). Adding a new bank partner is a single config change. Rotating keys is a single redeployment. Security auditors review one small project, not the entire monolith.
+
+**7. Scale SSO independently.**
+SSO traffic spikes (e.g., bank onboarding events) scale the lightweight gateway horizontally, without scaling the heavyweight legacy application.
+
+**8. Future-proof the federation.**
+Migrate from OpenSAML 4.x to 5.x, add SAML SP-initiated flow, or integrate OIDC — all in the gateway. The legacy app is untouched. New SPs are added by config, not code.
+
+### 2.5 What Doesn't Change (Zero User Impact)
+
+This extraction is invisible to every user and partner:
+
+- **The SSO experience is identical** — users see the same login pages, dashboards, and auto-redirect flows
+- **The SAML protocol flow is unchanged** — HTTP-POST binding with auto-submit forms works exactly the same way
+- **Bank partners are unaffected** — edith-bank and jarvis-bank still POST to `http://localhost:3000/saml/acs` (edith-core-ui proxies to gateway transparently)
 - **edith-core-ui remains the front door** — it handles sessions, renders pages, and proxies SAML requests to the gateway via simple REST calls
-
-### 2.4 Risks of NOT Extracting
-
-| Risk | Impact | Severity |
-|------|--------|----------|
-| Unpatched XML parser CVE (e.g., XXE) | Attacker reads files from the server, SSRF into internal network | Critical |
-| Weak signature algorithm (e.g., SHA-1 fallback) | Attacker forges SAML assertions, impersonates any user across all federated apps | Critical |
-| Expired or compromised signing key with no rotation process | All federated SSO is compromised across RDC, ACH, and any future SPs | High |
-| Legacy dependency conflict prevents upgrading BouncyCastle | Known crypto vulnerabilities persist indefinitely | High |
-| OWASP scan blocks deployment pipeline | Cannot deploy business-critical fixes because SAML deps fail the security scan | Medium |
-| Legacy Groovy runtime EOL | No security patches for the runtime itself, entire app becomes a liability | High |
+- **No downtime required** — the gateway can be deployed alongside edith-core, routes switched one at a time
 
 ---
 
