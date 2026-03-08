@@ -1,0 +1,482 @@
+{
+  "gateway": {
+    "name": "Edith SAML Gateway",
+    "description": "Centralized SAML proxy for Edith Core — routes all assertions between IdPs and SPs",
+    "port": 6000,
+    "coreBackendUrl": "http://localhost:9090"
+  },
+  "idpProviders": [
+    {
+      "id": "edith-bank",
+      "name": "Edith Bank",
+      "entityId": "http://localhost:5000/saml/metadata",
+      "ssoUrl": "http://localhost:5000/saml/sso",
+      "certFile": "bank-idp-cert.pem",
+      "backendUrl": "http://localhost:9093",
+      "uiUrl": "http://localhost:5000",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Edith Bank SSO — bank customers access Edith Core"
+    },
+    {
+      "id": "jarvis-bank",
+      "name": "Jarvis Bank",
+      "entityId": "http://localhost:5001/saml/metadata",
+      "ssoUrl": "http://localhost:5001/saml/sso",
+      "certFile": "jarvis-idp-cert.pem",
+      "backendUrl": "http://localhost:9094",
+      "uiUrl": "http://localhost:5001",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Jarvis Bank SSO — Jarvis customers access Edith Core"
+    },
+    {
+      "id": "meridian-bank",
+      "name": "Meridian Bank",
+      "entityId": "https://sso.meridianbank.com/saml/metadata",
+      "ssoUrl": "https://sso.meridianbank.com/saml/sso",
+      "certFile": "meridian-idp-cert.pem",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Meridian Bank SSO — partner bank federation"
+    },
+    {
+      "id": "summit-credit-union",
+      "name": "Summit Credit Union",
+      "entityId": "https://auth.summitcu.org/saml2/metadata",
+      "ssoUrl": "https://auth.summitcu.org/saml2/sso",
+      "certFile": "summit-idp-cert.pem",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Summit Credit Union SSO — credit union members"
+    },
+    {
+      "id": "atlas-financial",
+      "name": "Atlas Financial",
+      "entityId": "https://identity.atlasfinancial.com/saml/metadata",
+      "ssoUrl": "https://identity.atlasfinancial.com/saml/sso",
+      "certFile": "atlas-idp-cert.pem",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Atlas Financial Services SSO"
+    },
+    {
+      "id": "pinnacle-bank",
+      "name": "Pinnacle Bank",
+      "entityId": "https://sso.pinnaclebank.com/adfs/metadata",
+      "ssoUrl": "https://sso.pinnaclebank.com/adfs/ls",
+      "certFile": "pinnacle-idp-cert.pem",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Pinnacle Bank SSO via ADFS"
+    }
+  ],
+  "spProviders": [
+    {
+      "id": "rdc",
+      "name": "Edith RDC",
+      "fullName": "Remote Deposit Capture",
+      "entityId": "http://localhost:4000/saml/metadata",
+      "acsUrl": "http://localhost:4000/saml/acs",
+      "backendUrl": "http://localhost:9091",
+      "uiUrl": "http://localhost:4000",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Remote deposit check upload service"
+    },
+    {
+      "id": "ach",
+      "name": "Edith ACH",
+      "fullName": "ACH Payments",
+      "entityId": "http://localhost:4001/saml/metadata",
+      "acsUrl": "http://localhost:4001/saml/acs",
+      "backendUrl": "http://localhost:9092",
+      "uiUrl": "http://localhost:4001",
+      "status": "active",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "ACH payment processing service"
+    },
+    {
+      "id": "wire",
+      "name": "Edith Wire",
+      "fullName": "Wire Transfers",
+      "entityId": "https://wire.edith.com/saml/metadata",
+      "acsUrl": "https://wire.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Domestic and international wire transfer service"
+    },
+    {
+      "id": "billpay",
+      "name": "Edith BillPay",
+      "fullName": "Bill Payment",
+      "entityId": "https://billpay.edith.com/saml/metadata",
+      "acsUrl": "https://billpay.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Online bill payment and scheduling"
+    },
+    {
+      "id": "fraud",
+      "name": "Edith Fraud Monitor",
+      "fullName": "Fraud Detection",
+      "entityId": "https://fraud.edith.com/saml/metadata",
+      "acsUrl": "https://fraud.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Real-time fraud detection and alerting"
+    },
+    {
+      "id": "statements",
+      "name": "Edith Statements",
+      "fullName": "eStatements",
+      "entityId": "https://statements.edith.com/saml/metadata",
+      "acsUrl": "https://statements.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Electronic statement delivery and archive"
+    },
+    {
+      "id": "loans",
+      "name": "Edith Loans",
+      "fullName": "Loan Origination",
+      "entityId": "https://loans.edith.com/saml/metadata",
+      "acsUrl": "https://loans.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Loan application and origination platform"
+    },
+    {
+      "id": "treasury",
+      "name": "Edith Treasury",
+      "fullName": "Treasury Management",
+      "entityId": "https://treasury.edith.com/saml/metadata",
+      "acsUrl": "https://treasury.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Cash management and treasury services"
+    },
+    {
+      "id": "cards",
+      "name": "Edith Cards",
+      "fullName": "Card Management",
+      "entityId": "https://cards.edith.com/saml/metadata",
+      "acsUrl": "https://cards.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Credit/debit card management portal"
+    },
+    {
+      "id": "mobile",
+      "name": "Edith Mobile API",
+      "fullName": "Mobile Banking Gateway",
+      "entityId": "https://mobile-api.edith.com/saml/metadata",
+      "acsUrl": "https://mobile-api.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Mobile banking API gateway with SAML bridge"
+    },
+    {
+      "id": "compliance",
+      "name": "Edith Compliance",
+      "fullName": "Compliance Reporting",
+      "entityId": "https://compliance.edith.com/saml/metadata",
+      "acsUrl": "https://compliance.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "BSA/AML compliance and regulatory reporting"
+    },
+    {
+      "id": "trade",
+      "name": "Edith Trade",
+      "fullName": "Trade Finance",
+      "entityId": "https://trade.edith.com/saml/metadata",
+      "acsUrl": "https://trade.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Letters of credit and trade finance"
+    },
+    {
+      "id": "fx",
+      "name": "Edith FX",
+      "fullName": "Foreign Exchange",
+      "entityId": "https://fx.edith.com/saml/metadata",
+      "acsUrl": "https://fx.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Foreign exchange and currency conversion"
+    },
+    {
+      "id": "escrow",
+      "name": "Edith Escrow",
+      "fullName": "Escrow Services",
+      "entityId": "https://escrow.edith.com/saml/metadata",
+      "acsUrl": "https://escrow.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Escrow account management"
+    },
+    {
+      "id": "wealth",
+      "name": "Edith Wealth",
+      "fullName": "Wealth Management",
+      "entityId": "https://wealth.edith.com/saml/metadata",
+      "acsUrl": "https://wealth.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Investment and wealth management portal"
+    },
+    {
+      "id": "notifications",
+      "name": "Edith Alerts",
+      "fullName": "Notification Center",
+      "entityId": "https://alerts.edith.com/saml/metadata",
+      "acsUrl": "https://alerts.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Multi-channel notification and alert service"
+    },
+    {
+      "id": "reports",
+      "name": "Edith Reports",
+      "fullName": "Business Intelligence",
+      "entityId": "https://reports.edith.com/saml/metadata",
+      "acsUrl": "https://reports.edith.com/saml/acs",
+      "status": "configured",
+      "protocol": "SAML 2.0",
+      "binding": "HTTP-POST",
+      "description": "Reporting and business intelligence dashboards"
+    }
+  ],
+  "routes": [
+    {
+      "id": "route-bank-core",
+      "name": "Bank SSO to Core",
+      "from": "edith-bank",
+      "to": "edith-core",
+      "direction": "inbound",
+      "description": "Edith Bank users SSO into Edith Core",
+      "assertionFlow": "edith-bank signs assertion -> gateway validates -> gateway creates core session"
+    },
+    {
+      "id": "route-jarvis-core",
+      "name": "Jarvis SSO to Core",
+      "from": "jarvis-bank",
+      "to": "edith-core",
+      "direction": "inbound",
+      "description": "Jarvis Bank users SSO into Edith Core",
+      "assertionFlow": "jarvis-bank signs assertion -> gateway validates -> gateway creates core session"
+    },
+    {
+      "id": "route-meridian-core",
+      "name": "Meridian SSO to Core",
+      "from": "meridian-bank",
+      "to": "edith-core",
+      "direction": "inbound",
+      "description": "Meridian Bank users SSO into Edith Core",
+      "assertionFlow": "meridian-bank signs assertion -> gateway validates -> gateway creates core session"
+    },
+    {
+      "id": "route-summit-core",
+      "name": "Summit SSO to Core",
+      "from": "summit-credit-union",
+      "to": "edith-core",
+      "direction": "inbound",
+      "description": "Summit Credit Union members SSO into Edith Core",
+      "assertionFlow": "summit-cu signs assertion -> gateway validates -> gateway creates core session"
+    },
+    {
+      "id": "route-atlas-core",
+      "name": "Atlas SSO to Core",
+      "from": "atlas-financial",
+      "to": "edith-core",
+      "direction": "inbound",
+      "description": "Atlas Financial users SSO into Edith Core",
+      "assertionFlow": "atlas signs assertion -> gateway validates -> gateway creates core session"
+    },
+    {
+      "id": "route-pinnacle-core",
+      "name": "Pinnacle SSO to Core",
+      "from": "pinnacle-bank",
+      "to": "edith-core",
+      "direction": "inbound",
+      "description": "Pinnacle Bank users SSO into Edith Core via ADFS",
+      "assertionFlow": "pinnacle ADFS signs assertion -> gateway validates -> gateway creates core session"
+    },
+    {
+      "id": "route-core-rdc",
+      "name": "Core to RDC",
+      "from": "edith-core",
+      "to": "rdc",
+      "direction": "outbound",
+      "description": "Core users SSO into Remote Deposit Capture",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to RDC ACS"
+    },
+    {
+      "id": "route-core-ach",
+      "name": "Core to ACH",
+      "from": "edith-core",
+      "to": "ach",
+      "direction": "outbound",
+      "description": "Core users SSO into ACH Payments",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to ACH ACS"
+    },
+    {
+      "id": "route-core-wire",
+      "name": "Core to Wire",
+      "from": "edith-core",
+      "to": "wire",
+      "direction": "outbound",
+      "description": "Core users SSO into Wire Transfers",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Wire ACS"
+    },
+    {
+      "id": "route-core-billpay",
+      "name": "Core to BillPay",
+      "from": "edith-core",
+      "to": "billpay",
+      "direction": "outbound",
+      "description": "Core users SSO into Bill Payment",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to BillPay ACS"
+    },
+    {
+      "id": "route-core-fraud",
+      "name": "Core to Fraud Monitor",
+      "from": "edith-core",
+      "to": "fraud",
+      "direction": "outbound",
+      "description": "Core users SSO into Fraud Detection",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Fraud ACS"
+    },
+    {
+      "id": "route-core-statements",
+      "name": "Core to Statements",
+      "from": "edith-core",
+      "to": "statements",
+      "direction": "outbound",
+      "description": "Core users SSO into eStatements",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Statements ACS"
+    },
+    {
+      "id": "route-core-loans",
+      "name": "Core to Loans",
+      "from": "edith-core",
+      "to": "loans",
+      "direction": "outbound",
+      "description": "Core users SSO into Loan Origination",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Loans ACS"
+    },
+    {
+      "id": "route-core-treasury",
+      "name": "Core to Treasury",
+      "from": "edith-core",
+      "to": "treasury",
+      "direction": "outbound",
+      "description": "Core users SSO into Treasury Management",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Treasury ACS"
+    },
+    {
+      "id": "route-core-cards",
+      "name": "Core to Cards",
+      "from": "edith-core",
+      "to": "cards",
+      "direction": "outbound",
+      "description": "Core users SSO into Card Management",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Cards ACS"
+    },
+    {
+      "id": "route-core-mobile",
+      "name": "Core to Mobile",
+      "from": "edith-core",
+      "to": "mobile",
+      "direction": "outbound",
+      "description": "Core users SSO into Mobile Banking Gateway",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Mobile ACS"
+    },
+    {
+      "id": "route-core-compliance",
+      "name": "Core to Compliance",
+      "from": "edith-core",
+      "to": "compliance",
+      "direction": "outbound",
+      "description": "Core users SSO into Compliance Reporting",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Compliance ACS"
+    },
+    {
+      "id": "route-core-trade",
+      "name": "Core to Trade",
+      "from": "edith-core",
+      "to": "trade",
+      "direction": "outbound",
+      "description": "Core users SSO into Trade Finance",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Trade ACS"
+    },
+    {
+      "id": "route-core-fx",
+      "name": "Core to FX",
+      "from": "edith-core",
+      "to": "fx",
+      "direction": "outbound",
+      "description": "Core users SSO into Foreign Exchange",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to FX ACS"
+    },
+    {
+      "id": "route-core-escrow",
+      "name": "Core to Escrow",
+      "from": "edith-core",
+      "to": "escrow",
+      "direction": "outbound",
+      "description": "Core users SSO into Escrow Services",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Escrow ACS"
+    },
+    {
+      "id": "route-core-wealth",
+      "name": "Core to Wealth",
+      "from": "edith-core",
+      "to": "wealth",
+      "direction": "outbound",
+      "description": "Core users SSO into Wealth Management",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Wealth ACS"
+    },
+    {
+      "id": "route-core-notifications",
+      "name": "Core to Alerts",
+      "from": "edith-core",
+      "to": "notifications",
+      "direction": "outbound",
+      "description": "Core users SSO into Notification Center",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Alerts ACS"
+    },
+    {
+      "id": "route-core-reports",
+      "name": "Core to Reports",
+      "from": "edith-core",
+      "to": "reports",
+      "direction": "outbound",
+      "description": "Core users SSO into Business Intelligence",
+      "assertionFlow": "gateway signs assertion with core IdP key -> POST to Reports ACS"
+    }
+  ]
+}

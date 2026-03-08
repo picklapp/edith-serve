@@ -2,9 +2,11 @@ package com.edith.core.controller;
 
 import com.edith.core.model.UserInfo;
 import com.edith.core.service.SamlIdpService;
+import com.edith.core.service.SamlSpService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -12,9 +14,11 @@ import java.util.Map;
 public class SamlIdpController {
 
     private final SamlIdpService samlIdpService;
+    private final SamlSpService samlSpService;
 
-    public SamlIdpController(SamlIdpService samlIdpService) {
+    public SamlIdpController(SamlIdpService samlIdpService, SamlSpService samlSpService) {
         this.samlIdpService = samlIdpService;
+        this.samlSpService = samlSpService;
     }
 
     @PostMapping("/sso")
@@ -60,5 +64,28 @@ public class SamlIdpController {
                 </EntityDescriptor>
                 """.formatted(entityId);
         return ResponseEntity.ok().header("Content-Type", "application/xml").body(metadata);
+    }
+
+    @GetMapping("/providers")
+    public ResponseEntity<?> listProviders() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        // Registered SPs
+        Map<String, Map<String, String>> sps = new LinkedHashMap<>();
+        for (Map.Entry<String, SamlIdpService.SpConfig> entry : samlIdpService.getAllSpConfigs().entrySet()) {
+            sps.put(entry.getKey(), Map.of(
+                "entityId", entry.getValue().entityId(),
+                "acsUrl", entry.getValue().acsUrl()
+            ));
+        }
+        result.put("serviceProviders", sps);
+
+        // Trusted IdPs
+        result.put("trustedIdpIssuers", samlSpService.getTrustedIssuers());
+
+        result.put("idpEntityId", samlIdpService.getIdpEntityId());
+        result.put("spEntityId", samlSpService.getSpEntityId());
+
+        return ResponseEntity.ok(result);
     }
 }

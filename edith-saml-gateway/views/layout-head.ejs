@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= typeof title !== 'undefined' ? title : 'SAML Gateway' %> - Edith SAML Gateway</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e0e0e0; }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 240px;
+      background: #161822; border-right: 1px solid #2a2d3a; padding: 0;
+      display: flex; flex-direction: column; z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 20px; border-bottom: 1px solid #2a2d3a;
+    }
+    .sidebar-brand h1 { font-size: 16px; color: #7c8aff; font-weight: 700; letter-spacing: 0.5px; }
+    .sidebar-brand p { font-size: 11px; color: #666; margin-top: 4px; }
+    .sidebar-nav { padding: 12px 0; flex: 1; }
+    .sidebar-nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 20px; color: #8b8fa3; text-decoration: none;
+      font-size: 14px; transition: all 0.15s;
+    }
+    .sidebar-nav a:hover { color: #e0e0e0; background: #1e2030; }
+    .sidebar-nav a.active { color: #7c8aff; background: #1e2030; border-right: 2px solid #7c8aff; }
+    .sidebar-nav .nav-icon { width: 18px; text-align: center; font-size: 15px; }
+    .sidebar-footer { padding: 16px 20px; border-top: 1px solid #2a2d3a; font-size: 11px; color: #555; }
+
+    /* Main content */
+    .main { margin-left: 240px; min-height: 100vh; }
+    .topbar {
+      background: #161822; border-bottom: 1px solid #2a2d3a;
+      padding: 14px 28px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .topbar h2 { font-size: 17px; font-weight: 600; color: #e0e0e0; }
+    .topbar-right { display: flex; align-items: center; gap: 16px; }
+    .topbar-right .status-dot { width: 8px; height: 8px; background: #4caf50; border-radius: 50%; display: inline-block; }
+    .content { padding: 28px; }
+
+    /* Cards */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: #161822; border: 1px solid #2a2d3a; border-radius: 8px; padding: 20px;
+    }
+    .stat-card .stat-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card .stat-value { font-size: 28px; font-weight: 700; color: #e0e0e0; margin-top: 4px; }
+    .stat-card .stat-sub { font-size: 12px; color: #4caf50; margin-top: 4px; }
+
+    .card {
+      background: #161822; border: 1px solid #2a2d3a; border-radius: 8px;
+      margin-bottom: 20px; overflow: hidden;
+    }
+    .card-header {
+      padding: 16px 20px; border-bottom: 1px solid #2a2d3a;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .card-header h3 { font-size: 15px; font-weight: 600; }
+    .card-body { padding: 20px; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #666; border-bottom: 1px solid #2a2d3a; }
+    td { padding: 12px 14px; font-size: 13px; border-bottom: 1px solid #1e2030; }
+    tr:hover { background: #1a1c2a; }
+
+    /* Badges */
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;
+    }
+    .badge-active { background: #1b3a2d; color: #4caf50; }
+    .badge-configured { background: #2d2a1b; color: #ff9800; }
+    .badge-inactive { background: #3a1b1b; color: #f44336; }
+    .badge-inbound { background: #1b2d3a; color: #29b6f6; }
+    .badge-outbound { background: #2d1b3a; color: #ab47bc; }
+    .badge-success { background: #1b3a2d; color: #4caf50; }
+    .badge-failed { background: #3a1b1b; color: #f44336; }
+    .badge-idp { background: #1b2d3a; color: #29b6f6; }
+    .badge-sp { background: #2d1b3a; color: #ab47bc; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid #2a2d3a; margin-bottom: 20px; }
+    .tab {
+      padding: 10px 20px; font-size: 14px; color: #666; text-decoration: none;
+      border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .tab:hover { color: #e0e0e0; }
+    .tab.active { color: #7c8aff; border-bottom-color: #7c8aff; }
+
+    /* Provider card */
+    .provider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+    .provider-card {
+      background: #1a1c2a; border: 1px solid #2a2d3a; border-radius: 8px; padding: 18px;
+      transition: border-color 0.15s;
+    }
+    .provider-card:hover { border-color: #7c8aff; }
+    .provider-card .pc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .provider-card .pc-name { font-size: 15px; font-weight: 600; }
+    .provider-card .pc-entity { font-size: 11px; color: #555; word-break: break-all; margin-top: 4px; }
+    .provider-card .pc-desc { font-size: 13px; color: #888; margin-top: 8px; }
+    .provider-card .pc-meta { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    .provider-card .pc-meta-item { font-size: 11px; color: #666; background: #0f1117; padding: 3px 8px; border-radius: 4px; }
+
+    /* Empty state */
+    .empty-state { text-align: center; padding: 40px; color: #555; }
+    .empty-state .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <div class="sidebar-brand">
+      <h1>SAML Gateway</h1>
+      <p>Edith Core Proxy</p>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/dashboard" class="<%= typeof page !== 'undefined' && page === 'dashboard' ? 'active' : '' %>">
+        <span class="nav-icon">&#9632;</span> Dashboard
+      </a>
+      <a href="/providers" class="<%= typeof page !== 'undefined' && page === 'providers' ? 'active' : '' %>">
+        <span class="nav-icon">&#9670;</span> Providers
+      </a>
+      <a href="/routes" class="<%= typeof page !== 'undefined' && page === 'routes' ? 'active' : '' %>">
+        <span class="nav-icon">&#8644;</span> Routes
+      </a>
+      <a href="/topology" class="<%= typeof page !== 'undefined' && page === 'topology' ? 'active' : '' %>">
+        <span class="nav-icon">&#9733;</span> Topology
+      </a>
+      <a href="/logs" class="<%= typeof page !== 'undefined' && page === 'logs' ? 'active' : '' %>">
+        <span class="nav-icon">&#9776;</span> Assertion Log
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      Gateway v1.0 &middot; Port 6000
+    </div>
+  </div>
+  <div class="main">

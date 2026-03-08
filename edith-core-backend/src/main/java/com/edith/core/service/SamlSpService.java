@@ -1,5 +1,6 @@
 package com.edith.core.service;
 
+import com.edith.core.config.SamlIdpProperties;
 import com.edith.core.model.SamlUserInfo;
 import net.shibboleth.utilities.java.support.xml.BasicParserPool;
 import org.opensaml.core.xml.XMLObject;
@@ -12,7 +13,9 @@ import org.opensaml.security.x509.BasicX509Credential;
 import org.opensaml.xmlsec.signature.Signature;
 import org.opensaml.xmlsec.signature.support.SignatureValidator;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -23,33 +26,40 @@ import java.io.InputStream;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.*;
+import java.util.logging.Logger;
 
 @Service
 public class SamlSpService {
 
-    @Value("${saml.bank-idp.cert-path}")
-    private Resource bankIdpCertResource;
-
-    @Value("${saml.bank-idp.entity-id}")
-    private String bankIdpEntityId;
-
-    @Value("${saml.jarvis-idp.cert-path}")
-    private Resource jarvisIdpCertResource;
-
-    @Value("${saml.jarvis-idp.entity-id}")
-    private String jarvisIdpEntityId;
+    private static final Logger log = Logger.getLogger(SamlSpService.class.getName());
 
     @Value("${saml.core-sp.entity-id}")
     private String spEntityId;
 
+    private final SamlIdpProperties idpProperties;
+    private final ResourceLoader resourceLoader;
+
     private Map<String, Credential> trustedIdpCredentials;
     private BasicParserPool parserPool;
+
+    public SamlSpService(SamlIdpProperties idpProperties) {
+        this.idpProperties = idpProperties;
+        this.resourceLoader = new DefaultResourceLoader();
+    }
 
     @PostConstruct
     public void init() throws Exception {
         trustedIdpCredentials = new HashMap<>();
-        trustedIdpCredentials.put(bankIdpEntityId, loadCertCredential(bankIdpCertResource));
-        trustedIdpCredentials.put(jarvisIdpEntityId, loadCertCredential(jarvisIdpCertResource));
+
+        // Dynamically load all trusted IdPs from configuration
+        for (Map.Entry<String, SamlIdpProperties.IdpEntry> entry : idpProperties.getProviders().entrySet()) {
+            String idpName = entry.getKey();
+            SamlIdpProperties.IdpEntry idp = entry.getValue();
+            Resource certResource = resourceLoader.getResource(idp.getCertPath());
+            trustedIdpCredentials.put(idp.getEntityId(), loadCertCredential(certResource));
+            log.info("Trusted IdP: " + idpName + " -> " + idp.getEntityId());
+        }
+        log.info("Total trusted IdPs: " + trustedIdpCredentials.size());
 
         parserPool = new BasicParserPool();
         parserPool.setNamespaceAware(true);
@@ -75,7 +85,6 @@ public class SamlSpService {
         UnmarshallerFactory unmarshallerFactory = XMLObjectProviderRegistrySupport.getUnmarshallerFactory();
         Response response = (Response) unmarshallerFactory.getUnmarshaller(element).unmarshall(element);
 
-        // Identify the issuer and find the matching trusted IdP credential
         String issuerValue = response.getIssuer() != null ? response.getIssuer().getValue() : null;
         if (issuerValue == null) {
             throw new RuntimeException("SAML Response has no Issuer");
@@ -83,23 +92,21 @@ public class SamlSpService {
 
         Credential idpCredential = trustedIdpCredentials.get(issuerValue);
         if (idpCredential == null) {
-            throw new RuntimeException("Untrusted IdP issuer: " + issuerValue);
+            throw new RuntimeException("Untrusted IdP issuer: " + issuerValue
+                    + ". Trusted issuers: " + trustedIdpCredentials.keySet());
         }
 
-        // Validate signature against the matched IdP's certificate
         Signature signature = response.getSignature();
         if (signature != null) {
             SignatureValidator.validate(signature, idpCredential);
         }
 
-        // Validate status
         if (response.getStatus() == null ||
             response.getStatus().getStatusCode() == null ||
             !StatusCode.SUCCESS.equals(response.getStatus().getStatusCode().getValue())) {
             throw new RuntimeException("SAML Response status is not Success");
         }
 
-        // Extract assertion
         if (response.getAssertions().isEmpty()) {
             throw new RuntimeException("No assertions found in SAML Response");
         }
@@ -127,6 +134,10 @@ public class SamlSpService {
         userInfo.setAttributes(attributes);
 
         return userInfo;
+    }
+
+    public Set<String> getTrustedIssuers() {
+        return Collections.unmodifiableSet(trustedIdpCredentials.keySet());
     }
 
     public String getSpEntityId() {

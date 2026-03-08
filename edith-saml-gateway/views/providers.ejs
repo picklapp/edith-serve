@@ -1,0 +1,74 @@
+<% var page = 'providers'; var title = 'Providers'; %>
+<%- include('layout-head') %>
+
+    <div class="topbar">
+      <h2>SAML Providers</h2>
+      <div class="topbar-right">
+        <span style="font-size: 13px; color: #888;"><%= config.idpProviders.length %> IdPs &middot; <%= config.spProviders.length %> SPs</span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="tabs">
+        <a href="/providers?tab=idp" class="tab <%= tab === 'idp' ? 'active' : '' %>">Identity Providers (<%= config.idpProviders.length %>)</a>
+        <a href="/providers?tab=sp" class="tab <%= tab === 'sp' ? 'active' : '' %>">Service Providers (<%= config.spProviders.length %>)</a>
+      </div>
+
+      <% if (tab === 'idp') { %>
+      <div class="provider-grid">
+        <% config.idpProviders.forEach(function(idp) { %>
+        <div class="provider-card">
+          <div class="pc-header">
+            <div>
+              <div class="pc-name"><%= idp.name %></div>
+              <div class="pc-entity"><%= idp.entityId %></div>
+            </div>
+            <span class="badge badge-<%= idp.status %>"><%= idp.status %></span>
+          </div>
+          <div class="pc-desc"><%= idp.description %></div>
+          <div class="pc-meta">
+            <span class="pc-meta-item">Type: <strong>IdP</strong></span>
+            <span class="pc-meta-item">Protocol: <%= idp.protocol %></span>
+            <span class="pc-meta-item">Binding: <%= idp.binding %></span>
+            <span class="pc-meta-item">Cert: <%= idp.certFile %></span>
+            <% if (idp.uiUrl) { %>
+            <span class="pc-meta-item">UI: <%= idp.uiUrl %></span>
+            <% } %>
+            <% if (idp.backendUrl) { %>
+            <span class="pc-meta-item">Backend: <%= idp.backendUrl %></span>
+            <% } %>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+      <% } else { %>
+      <div class="provider-grid">
+        <% config.spProviders.forEach(function(sp) { %>
+        <div class="provider-card">
+          <div class="pc-header">
+            <div>
+              <div class="pc-name"><%= sp.name %> <% if (sp.fullName) { %><span style="font-weight: 400; color: #666;"> - <%= sp.fullName %></span><% } %></div>
+              <div class="pc-entity"><%= sp.entityId %></div>
+            </div>
+            <span class="badge badge-<%= sp.status %>"><%= sp.status %></span>
+          </div>
+          <div class="pc-desc"><%= sp.description %></div>
+          <div class="pc-meta">
+            <span class="pc-meta-item">Type: <strong>SP</strong></span>
+            <span class="pc-meta-item">Protocol: <%= sp.protocol %></span>
+            <span class="pc-meta-item">Binding: <%= sp.binding %></span>
+            <span class="pc-meta-item">ACS: <%= sp.acsUrl %></span>
+            <% if (sp.uiUrl) { %>
+            <span class="pc-meta-item">UI: <%= sp.uiUrl %></span>
+            <% } %>
+            <% if (sp.backendUrl) { %>
+            <span class="pc-meta-item">Backend: <%= sp.backendUrl %></span>
+            <% } %>
+          </div>
+        </div>
+        <% }); %>
+      </div>
+      <% } %>
+    </div>
+
+<%- include('layout-foot') %>

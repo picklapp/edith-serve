@@ -8,7 +8,7 @@ NC='\033[0m'
 
 echo "Stopping all Edith services..."
 
-for PORT in 3000 4000 4001 5000 5001 9090 9091 9092 9093 9094; do
+for PORT in 3000 3001 4000 4001 5000 5001 6000 9090 9091 9092 9093 9094; do
   PID=$(lsof -ti :$PORT 2>/dev/null)
   if [ -n "$PID" ]; then
     kill -9 $PID 2>/dev/null

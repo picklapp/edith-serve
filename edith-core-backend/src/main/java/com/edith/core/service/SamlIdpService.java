@@ -1,5 +1,6 @@
 package com.edith.core.service;
 
+import com.edith.core.config.SamlSpProperties;
 import com.edith.core.model.UserInfo;
 import net.shibboleth.utilities.java.support.xml.SerializeSupport;
 import org.opensaml.core.config.InitializationService;
@@ -29,28 +30,16 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.logging.Logger;
 
 @Service
 public class SamlIdpService {
 
+    private static final Logger log = Logger.getLogger(SamlIdpService.class.getName());
+
     @Value("${saml.idp.entity-id}")
     private String idpEntityId;
-
-    @Value("${saml.sp.rdc.entity-id}")
-    private String rdcSpEntityId;
-
-    @Value("${saml.sp.rdc.acs-url}")
-    private String rdcAcsUrl;
-
-    @Value("${saml.sp.ach.entity-id}")
-    private String achSpEntityId;
-
-    @Value("${saml.sp.ach.acs-url}")
-    private String achAcsUrl;
 
     @Value("${saml.idp.cert-path}")
     private Resource certResource;
@@ -58,29 +47,38 @@ public class SamlIdpService {
     @Value("${saml.idp.key-path}")
     private Resource keyResource;
 
+    private final SamlSpProperties spProperties;
+
     private Credential signingCredential;
     private Map<String, SpConfig> spConfigs;
+
+    public SamlIdpService(SamlSpProperties spProperties) {
+        this.spProperties = spProperties;
+    }
 
     @PostConstruct
     public void init() throws Exception {
         InitializationService.initialize();
         signingCredential = loadCredential();
 
-        // Register known SPs
+        // Dynamically load all SPs from configuration
         spConfigs = new HashMap<>();
-        spConfigs.put("rdc", new SpConfig(rdcSpEntityId, rdcAcsUrl));
-        spConfigs.put("ach", new SpConfig(achSpEntityId, achAcsUrl));
+        for (Map.Entry<String, SamlSpProperties.SpEntry> entry : spProperties.getProviders().entrySet()) {
+            String spName = entry.getKey();
+            SamlSpProperties.SpEntry sp = entry.getValue();
+            spConfigs.put(spName, new SpConfig(sp.getEntityId(), sp.getAcsUrl()));
+            log.info("Registered SP: " + spName + " -> " + sp.getEntityId());
+        }
+        log.info("Total SPs registered: " + spConfigs.size());
     }
 
     private Credential loadCredential() throws Exception {
-        // Load certificate
         X509Certificate cert;
         try (InputStream is = certResource.getInputStream()) {
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
             cert = (X509Certificate) cf.generateCertificate(is);
         }
 
-        // Load private key
         String keyPem;
         try (InputStream is = keyResource.getInputStream()) {
             keyPem = new String(is.readAllBytes());
@@ -100,29 +98,31 @@ public class SamlIdpService {
     public SpConfig getSpConfig(String spName) {
         SpConfig config = spConfigs.get(spName);
         if (config == null) {
-            throw new IllegalArgumentException("Unknown SP: " + spName);
+            throw new IllegalArgumentException("Unknown SP: " + spName
+                    + ". Registered SPs: " + spConfigs.keySet());
         }
         return config;
+    }
+
+    public Map<String, SpConfig> getAllSpConfigs() {
+        return Collections.unmodifiableMap(spConfigs);
     }
 
     public String generateSamlResponse(UserInfo user, String spName) throws Exception {
         SpConfig sp = getSpConfig(spName);
         Response response = buildResponse(user, sp.entityId(), sp.acsUrl());
 
-        // Sign the response
         Signature signature = new SignatureBuilder().buildObject();
         signature.setSigningCredential(signingCredential);
         signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
         signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
         response.setSignature(signature);
 
-        // Marshal and sign
         Marshaller marshaller = XMLObjectProviderRegistrySupport.getMarshallerFactory()
                 .getMarshaller(response);
         Element element = marshaller.marshall(response);
         Signer.signObject(signature);
 
-        // Serialize to XML string, then base64 encode
         String xml = SerializeSupport.nodeToString(element);
         return Base64.getEncoder().encodeToString(xml.getBytes("UTF-8"));
     }
@@ -131,50 +131,41 @@ public class SamlIdpService {
         Instant now = Instant.now();
         Instant notOnOrAfter = now.plusSeconds(300);
 
-        // Issuer
         Issuer responseIssuer = new IssuerBuilder().buildObject();
         responseIssuer.setValue(idpEntityId);
 
-        // Status
         StatusCode statusCode = new StatusCodeBuilder().buildObject();
         statusCode.setValue(StatusCode.SUCCESS);
         Status status = new StatusBuilder().buildObject();
         status.setStatusCode(statusCode);
 
-        // NameID
         NameID nameID = new NameIDBuilder().buildObject();
         nameID.setValue(user.getEmail());
         nameID.setFormat(NameIDType.EMAIL);
 
-        // SubjectConfirmationData
         SubjectConfirmationData confirmationData = new SubjectConfirmationDataBuilder().buildObject();
         confirmationData.setRecipient(acsUrl);
         confirmationData.setNotOnOrAfter(notOnOrAfter);
 
-        // SubjectConfirmation
         SubjectConfirmation subjectConfirmation = new SubjectConfirmationBuilder().buildObject();
         subjectConfirmation.setMethod(SubjectConfirmation.METHOD_BEARER);
         subjectConfirmation.setSubjectConfirmationData(confirmationData);
 
-        // Subject
         Subject subject = new SubjectBuilder().buildObject();
         subject.setNameID(nameID);
         subject.getSubjectConfirmations().add(subjectConfirmation);
 
-        // Audience
         Audience audience = new AudienceBuilder().buildObject();
         audience.setURI(spEntityId);
 
         AudienceRestriction audienceRestriction = new AudienceRestrictionBuilder().buildObject();
         audienceRestriction.getAudiences().add(audience);
 
-        // Conditions
         Conditions conditions = new ConditionsBuilder().buildObject();
         conditions.setNotBefore(now);
         conditions.setNotOnOrAfter(notOnOrAfter);
         conditions.getAudienceRestrictions().add(audienceRestriction);
 
-        // AuthnStatement
         AuthnContextClassRef authnContextClassRef = new AuthnContextClassRefBuilder().buildObject();
         authnContextClassRef.setURI(AuthnContext.PASSWORD_AUTHN_CTX);
 
@@ -185,16 +176,13 @@ public class SamlIdpService {
         authnStatement.setAuthnInstant(now);
         authnStatement.setAuthnContext(authnContext);
 
-        // Attributes
         AttributeStatement attrStatement = new AttributeStatementBuilder().buildObject();
         attrStatement.getAttributes().add(buildAttribute("email", user.getEmail()));
         attrStatement.getAttributes().add(buildAttribute("displayName", user.getDisplayName()));
 
-        // Assertion issuer
         Issuer assertionIssuer = new IssuerBuilder().buildObject();
         assertionIssuer.setValue(idpEntityId);
 
-        // Assertion
         Assertion assertion = new AssertionBuilder().buildObject();
         assertion.setID("_" + UUID.randomUUID().toString());
         assertion.setIssueInstant(now);
@@ -205,7 +193,6 @@ public class SamlIdpService {
         assertion.getAuthnStatements().add(authnStatement);
         assertion.getAttributeStatements().add(attrStatement);
 
-        // Response
         Response response = new ResponseBuilder().buildObject();
         response.setID("_" + UUID.randomUUID().toString());
         response.setIssueInstant(now);

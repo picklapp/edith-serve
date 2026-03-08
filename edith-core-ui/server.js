@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001; // Internal port — gateway on :3000 proxies to here
 const BACKEND_URL = 'http://localhost:9090';
 
 // Middleware

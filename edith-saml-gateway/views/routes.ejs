@@ -1,0 +1,100 @@
+<% var page = 'routes'; var title = 'Routes'; %>
+<%- include('layout-head') %>
+
+    <div class="topbar">
+      <h2>Assertion Routes</h2>
+      <div class="topbar-right">
+        <span style="font-size: 13px; color: #888;"><%= routes.length %> routes</span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="tabs">
+        <a href="/routes?filter=all" class="tab <%= filter === 'all' ? 'active' : '' %>">All Routes (<%= config.routes.length %>)</a>
+        <a href="/routes?filter=inbound" class="tab <%= filter === 'inbound' ? 'active' : '' %>">Inbound (<%= config.routes.filter(r => r.direction === 'inbound').length %>)</a>
+        <a href="/routes?filter=outbound" class="tab <%= filter === 'outbound' ? 'active' : '' %>">Outbound (<%= config.routes.filter(r => r.direction === 'outbound').length %>)</a>
+      </div>
+
+      <div class="card">
+        <div class="card-body" style="padding: 0;">
+          <table>
+            <thead>
+              <tr>
+                <th>Route</th>
+                <th>Direction</th>
+                <th>From</th>
+                <th></th>
+                <th>To</th>
+                <th>Assertion Flow</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% routes.forEach(function(route) { %>
+              <%
+                var fromName = route.from;
+                var toName = route.to;
+                if (route.direction === 'inbound') {
+                  var idp = config.idpProviders.find(function(p) { return p.id === route.from; });
+                  if (idp) fromName = idp.name;
+                  toName = 'Edith Core';
+                } else {
+                  fromName = 'Edith Core';
+                  var sp = config.spProviders.find(function(p) { return p.id === route.to; });
+                  if (sp) toName = sp.name;
+                }
+              %>
+              <tr>
+                <td style="font-weight: 600;"><%= route.name %></td>
+                <td><span class="badge badge-<%= route.direction %>"><%= route.direction %></span></td>
+                <td>
+                  <span class="badge badge-<%= route.direction === 'inbound' ? 'idp' : 'sp' %>" style="margin-right: 4px;"><%= route.direction === 'inbound' ? 'IdP' : 'Hub' %></span>
+                  <%= fromName %>
+                </td>
+                <td style="text-align: center; color: #555; font-size: 16px;">&#8594;</td>
+                <td>
+                  <span class="badge badge-<%= route.direction === 'outbound' ? 'sp' : 'idp' %>" style="margin-right: 4px;"><%= route.direction === 'outbound' ? 'SP' : 'Hub' %></span>
+                  <%= toName %>
+                </td>
+                <td style="font-size: 12px; color: #666; max-width: 300px;"><%= route.assertionFlow %></td>
+              </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Route explanation -->
+      <div class="card">
+        <div class="card-header">
+          <h3>How Assertion Routing Works</h3>
+        </div>
+        <div class="card-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+            <div>
+              <h4 style="color: #29b6f6; font-size: 14px; margin-bottom: 8px;">Inbound (IdP &#8594; Core)</h4>
+              <ol style="padding-left: 20px; font-size: 13px; color: #888; line-height: 2;">
+                <li>Bank user authenticates at their bank's portal</li>
+                <li>Bank IdP generates a signed SAML assertion</li>
+                <li>Browser POSTs SAMLResponse to <code style="color: #7c8aff;">gateway:6000/saml/acs</code></li>
+                <li>Gateway forwards to Core backend for signature validation</li>
+                <li>Gateway relays validated assertion to Core UI</li>
+                <li>User lands on Core dashboard — no password needed</li>
+              </ol>
+            </div>
+            <div>
+              <h4 style="color: #ab47bc; font-size: 14px; margin-bottom: 8px;">Outbound (Core &#8594; SP)</h4>
+              <ol style="padding-left: 20px; font-size: 13px; color: #888; line-height: 2;">
+                <li>Core user clicks "Open Service" on their dashboard</li>
+                <li>Core UI calls <code style="color: #7c8aff;">gateway:6000/saml/sso/:sp</code></li>
+                <li>Gateway requests assertion from Core backend (signs with IdP key)</li>
+                <li>Gateway returns auto-POST form to browser</li>
+                <li>Browser POSTs SAMLResponse to SP's ACS URL</li>
+                <li>SP validates signature, creates session — no password needed</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<%- include('layout-foot') %>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SSO to <%= serviceName %> via Gateway</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #0f1117; color: #e0e0e0; }
+    .loader { text-align: center; }
+    .loader h2 { font-size: 18px; margin-bottom: 8px; }
+    .loader p { color: #666; font-size: 14px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #2a2d3a; border-top-color: #7c8aff; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 20px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <h2>Redirecting to <%= serviceName %></h2>
+    <p>SAML assertion routed via Gateway...</p>
+  </div>
+  <form id="samlForm" method="POST" action="<%= acsUrl %>">
+    <input type="hidden" name="SAMLResponse" value="<%= samlResponse %>" />
+  </form>
+  <script>document.getElementById('samlForm').submit();</script>
+</body>
+</html>
